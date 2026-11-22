@@ -134,11 +134,40 @@
     }
     .subtitle { margin: 0 auto; max-width: 410px; color: var(--muted); }
 
+    .mission-setup { text-align: left; margin-top: 24px; }
+    .countdown-control {
+      display: flex; align-items: center; gap: 12px; border: 1px solid var(--line);
+      border-radius: 16px; padding: 14px 16px; background: rgba(255,255,255,.04);
+      cursor: pointer;
+    }
+    .countdown-control input {
+      width: 20px; height: 20px; accent-color: var(--accent);
+      flex: 0 0 auto;
+    }
+    .countdown-control strong { display: block; }
+    .countdown-control small { display: block; color: var(--muted); }
+    .start-btn {
+      width: 100%; border: 0; border-radius: 15px; padding: 15px 18px; cursor: pointer;
+      color: #fff; background: linear-gradient(100deg, var(--accent), #bd57ee);
+      font: 700 1rem "DM Sans", sans-serif; box-shadow: 0 10px 24px rgba(141,122,255,.25);
+      margin-top: 12px;
+    }
+
     .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 24px 0; }
     .stat { border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; background: rgba(255,255,255,.04); }
     .stat-label { display: block; color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-spacing: .08em; }
     .stat-value { display: block; margin-top: 2px; font: 700 1.4rem "Space Grotesk", sans-serif; }
     .score-value { color: var(--warm); }
+
+    .countdown {
+      display: flex; align-items: center; justify-content: space-between;
+      border: 1px solid var(--line); border-radius: 14px; padding: 10px 14px;
+      margin: 18px 0; background: rgba(141,122,255,.08);
+      color: var(--muted); font-weight: 700;
+    }
+    .countdown-value { color: var(--accent-2); font: 700 1.35rem "Space Grotesk", sans-serif; font-variant-numeric: tabular-nums; }
+    .countdown.warning { border-color: rgba(255,113,142,.55); background: rgba(255,113,142,.1); }
+    .countdown.warning .countdown-value { color: var(--danger); }
 
     .progress-wrap { margin-bottom: 28px; }
     .progress-meta { display: flex; justify-content: space-between; color: var(--muted); font-size: .82rem; margin-bottom: 8px; }
@@ -195,12 +224,26 @@
         <div class="eyebrow">Mission briefing</div>
         <h1>How far can you explore?</h1>
         <p class="subtitle">Test your cosmic knowledge across planets, stars, and the great beyond.</p>
+        <div class="mission-setup" id="missionSetup">
+          <label class="countdown-control" for="countdownToggle">
+            <input type="checkbox" id="countdownToggle">
+            <span>
+              <strong>Enable per-question countdown</strong>
+              <small>15 seconds per question</small>
+            </span>
+          </label>
+          <button class="start-btn" id="startButton">🚀 Start mission</button>
+        </div>
       </div>
 
-      <div id="quiz">
+      <div id="quiz" class="hidden">
         <div class="stats">
           <div class="stat"><span class="stat-label">Question</span><span class="stat-value" id="questionCount">1 / 10</span></div>
           <div class="stat"><span class="stat-label">Score</span><span class="stat-value score-value" id="score">0 pts</span></div>
+        </div>
+        <div class="countdown hidden" id="countdown" aria-live="polite">
+          <span>Time remaining</span>
+          <span class="countdown-value" id="countdownValue">00:15</span>
         </div>
         <div class="progress-wrap">
           <div class="progress-meta"><span>Mission progress</span><span id="progressPercent">10%</span></div>
@@ -241,14 +284,65 @@
     let current = 0;
     let score = 0;
     let answered = false;
+    const countdownDuration = 15;
+    let countdownEnabled = false;
+    let countdownTimer = null;
+    let timeLeft = countdownDuration;
 
     const $ = (id) => document.getElementById(id);
     const questionText = $("questionText");
     const answersEl = $("answers");
     const feedback = $("feedback");
     const nextButton = $("nextButton");
+    const countdownEl = $("countdown");
+    const countdownValue = $("countdownValue");
+
+    function stopCountdown() {
+      if (countdownTimer !== null) {
+        clearInterval(countdownTimer);
+        countdownTimer = null;
+      }
+    }
+
+    function startCountdown() {
+      stopCountdown();
+      if (!countdownEnabled) {
+        countdownEl.classList.add("hidden");
+        countdownEl.classList.remove("warning");
+        return;
+      }
+
+      timeLeft = countdownDuration;
+      countdownEl.classList.remove("hidden", "warning");
+      updateCountdownDisplay();
+      countdownTimer = setInterval(() => {
+        timeLeft--;
+        updateCountdownDisplay();
+        if (timeLeft <= 0) expireQuestion();
+      }, 1000);
+    }
+
+    function updateCountdownDisplay() {
+      countdownValue.textContent = `00:${String(timeLeft).padStart(2, "0")}`;
+      countdownEl.classList.toggle("warning", timeLeft <= 5);
+    }
+
+    function expireQuestion() {
+      if (answered) return;
+      answered = true;
+      stopCountdown();
+      const item = questions[current];
+      const buttons = [...answersEl.children];
+      buttons.forEach((button) => { button.disabled = true; });
+      buttons[item.correct].classList.add("correct");
+      feedback.textContent = `⏰ Time expired — the answer is ${item.answers[item.correct]}.`;
+      feedback.className = "feedback pop";
+      nextButton.disabled = false;
+      nextButton.textContent = current === questions.length - 1 ? "View mission results" : "Next question →";
+    }
 
     function renderQuestion() {
+      stopCountdown();
       const item = questions[current];
       answered = false;
       $("questionCount").textContent = `${current + 1} / ${questions.length}`;
@@ -269,10 +363,12 @@
         button.addEventListener("click", () => selectAnswer(index, button));
         answersEl.appendChild(button);
       });
+      startCountdown();
     }
 
     function selectAnswer(index, selectedButton) {
       if (answered) return;
+      stopCountdown();
       answered = true;
       const item = questions[current];
       const buttons = [...answersEl.children];
@@ -299,6 +395,7 @@
     });
 
     function showResults() {
+      stopCountdown();
       $("quiz").classList.add("hidden");
       $("results").classList.add("show");
       $("finalScore").textContent = `${score} / ${questions.length}`;
@@ -323,11 +420,22 @@
     }
 
     $("restartButton").addEventListener("click", () => {
+      stopCountdown();
       current = 0;
       score = 0;
       $("score").textContent = "0 pts";
-      $("quiz").classList.remove("hidden");
       $("results").classList.remove("show");
+      $("missionSetup").classList.remove("hidden");
+      $("countdown").classList.add("hidden");
+    });
+
+    $("startButton").addEventListener("click", () => {
+      countdownEnabled = $("countdownToggle").checked;
+      $("missionSetup").classList.add("hidden");
+      $("quiz").classList.remove("hidden");
+      current = 0;
+      score = 0;
+      $("score").textContent = "0 pts";
       renderQuestion();
     });
 
@@ -337,7 +445,6 @@
       $("themeToggle").setAttribute("aria-label", light ? "Switch to dark theme" : "Switch to light theme");
     });
 
-    renderQuestion();
   </script>
 </body>
 </html>
