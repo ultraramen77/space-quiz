@@ -134,6 +134,48 @@
     }
     .subtitle { margin: 0 auto; max-width: 410px; color: var(--muted); }
 
+    .setup { display: grid; gap: 14px; }
+    .setup.hidden { display: none; }
+    .setup-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .setup-field { display: grid; gap: 8px; }
+    .setup-field label { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-spacing: .08em; }
+    .setup-field select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      padding: 13px 38px 13px 12px;
+      background: var(--panel-solid);
+      color: var(--text);
+      font: 600 1rem "DM Sans", sans-serif;
+    }
+    .setup-field select:focus-visible, .theme-toggle:focus-visible, .answer:focus-visible,
+    .next-btn:focus-visible, .restart-btn:focus-visible, .start-btn:focus-visible {
+      outline: 3px solid rgba(60,230,208,.38);
+      outline-offset: 2px;
+    }
+    .mission-status {
+      min-height: 24px;
+      margin: 2px 0 0;
+      color: var(--muted);
+      text-align: center;
+      font-size: .9rem;
+    }
+    .mission-status strong { color: var(--accent-2); }
+    .start-btn {
+      width: 100%;
+      border: 0;
+      border-radius: 15px;
+      padding: 15px 18px;
+      cursor: pointer;
+      color: #fff;
+      background: linear-gradient(100deg, var(--accent), #bd57ee);
+      font: 700 1rem "DM Sans", sans-serif;
+      box-shadow: 0 10px 24px rgba(141,122,255,.25);
+      transition: transform .2s ease, filter .2s ease;
+    }
+    .start-btn:hover:not(:disabled) { transform: translateY(-2px); filter: brightness(1.08); }
+    .start-btn:disabled { opacity: .45; cursor: not-allowed; }
+
     .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 24px 0; }
     .stat { border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; background: rgba(255,255,255,.04); }
     .stat-label { display: block; color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-spacing: .08em; }
@@ -180,7 +222,11 @@
     .final-score { margin: 10px 0; font: 700 3.5rem "Space Grotesk", sans-serif; color: var(--warm); }
     .result-message { color: var(--muted); }
     .hidden { display: none; }
-    @media (max-width: 400px) { body { padding: 14px 10px; } .card { border-radius: 22px; padding: 20px 16px; } }
+    @media (max-width: 400px) {
+      body { padding: 14px 10px; }
+      .card { border-radius: 22px; padding: 20px 16px; }
+      .setup-grid { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
@@ -197,7 +243,30 @@
         <p class="subtitle">Test your cosmic knowledge across planets, stars, and the great beyond.</p>
       </div>
 
-      <div id="quiz">
+      <div class="setup" id="setup">
+        <div class="setup-grid">
+          <div class="setup-field">
+            <label for="categorySelect">Category</label>
+            <select id="categorySelect">
+              <option value="All">All topics</option>
+              <option value="Planets" selected>Planets</option>
+              <option value="Spaceflight">Spaceflight</option>
+            </select>
+          </div>
+          <div class="setup-field">
+            <label for="difficultySelect">Difficulty</label>
+            <select id="difficultySelect">
+              <option value="All">All levels</option>
+              <option value="Easy" selected>Easy</option>
+              <option value="Challenge">Challenge</option>
+            </select>
+          </div>
+        </div>
+        <p class="mission-status" id="missionStatus" aria-live="polite"></p>
+        <button class="start-btn" id="startButton">Start mission</button>
+      </div>
+
+      <div id="quiz" class="hidden">
         <div class="stats">
           <div class="stat"><span class="stat-label">Question</span><span class="stat-value" id="questionCount">1 / 10</span></div>
           <div class="stat"><span class="stat-label">Score</span><span class="stat-value score-value" id="score">0 pts</span></div>
@@ -226,35 +295,51 @@
 
   <script>
     const questions = [
-      { q: "Which planet is known as the Red Planet?", answers: ["Venus", "Mars", "Jupiter", "Mercury"], correct: 1 },
-      { q: "What is the largest planet in our solar system?", answers: ["Saturn", "Neptune", "Jupiter", "Earth"], correct: 2 },
-      { q: "How many moons does Earth have?", answers: ["One", "Two", "Four", "Zero"], correct: 0 },
-      { q: "What is the name of the galaxy that contains our solar system?", answers: ["Andromeda", "Whirlpool", "Milky Way", "Sombrero"], correct: 2 },
-      { q: "Which star is closest to Earth?", answers: ["Sirius", "Polaris", "The Sun", "Betelgeuse"], correct: 2 },
-      { q: "What is Saturn famous for?", answers: ["Its rings", "Its volcanoes", "Its blue oceans", "Its two suns"], correct: 0 },
-      { q: "What force keeps planets in orbit around the Sun?", answers: ["Magnetism", "Gravity", "Friction", "Light"], correct: 1 },
-      { q: "Which planet is closest to the Sun?", answers: ["Mercury", "Venus", "Mars", "Earth"], correct: 0 },
-      { q: "What do astronauts wear outside a spacecraft?", answers: ["A diving suit", "A pressure suit", "A raincoat", "A wingsuit"], correct: 1 },
-      { q: "What is a light-year a measurement of?", answers: ["Time", "Brightness", "Distance", "Temperature"], correct: 2 }
+      { q: "Which planet is known as the Red Planet?", answers: ["Venus", "Mars", "Jupiter", "Mercury"], correct: 1, category: "Planets", difficulty: "Easy" },
+      { q: "What is the largest planet in our solar system?", answers: ["Saturn", "Neptune", "Jupiter", "Earth"], correct: 2, category: "Planets", difficulty: "Easy" },
+      { q: "How many moons does Earth have?", answers: ["One", "Two", "Four", "Zero"], correct: 0, category: "Planets", difficulty: "Easy" },
+      { q: "What is Saturn famous for?", answers: ["Its rings", "Its volcanoes", "Its blue oceans", "Its two suns"], correct: 0, category: "Planets", difficulty: "Easy" },
+      { q: "Which planet is closest to the Sun?", answers: ["Mercury", "Venus", "Mars", "Earth"], correct: 0, category: "Planets", difficulty: "Easy" },
+      { q: "What is the name of the tallest volcano in the solar system?", answers: ["Mauna Kea", "Olympus Mons", "Mount Everest", "Caloris Montes"], correct: 1, category: "Planets", difficulty: "Challenge" },
+      { q: "Which planet has the shortest year?", answers: ["Mercury", "Venus", "Mars", "Earth"], correct: 0, category: "Planets", difficulty: "Challenge" },
+      { q: "Which planet rotates almost completely on its side?", answers: ["Jupiter", "Saturn", "Uranus", "Neptune"], correct: 2, category: "Planets", difficulty: "Challenge" },
+      { q: "What is the densest planet in the solar system?", answers: ["Earth", "Mars", "Mercury", "Jupiter"], correct: 0, category: "Planets", difficulty: "Challenge" },
+      { q: "Which dwarf planet is located in the asteroid belt?", answers: ["Ceres", "Pluto", "Eris", "Makemake"], correct: 0, category: "Planets", difficulty: "Challenge" },
+      { q: "What do astronauts wear outside a spacecraft?", answers: ["A diving suit", "A pressure suit", "A raincoat", "A wingsuit"], correct: 1, category: "Spaceflight", difficulty: "Easy" },
+      { q: "What was the name of the first human to walk on the Moon?", answers: ["Buzz Aldrin", "Yuri Gagarin", "Neil Armstrong", "John Glenn"], correct: 2, category: "Spaceflight", difficulty: "Easy" },
+      { q: "What force keeps planets in orbit around the Sun?", answers: ["Magnetism", "Gravity", "Friction", "Light"], correct: 1, category: "Spaceflight", difficulty: "Easy" },
+      { q: "What is a light-year a measurement of?", answers: ["Time", "Brightness", "Distance", "Temperature"], correct: 2, category: "Spaceflight", difficulty: "Easy" },
+      { q: "Which star is closest to Earth?", answers: ["Sirius", "Polaris", "The Sun", "Betelgeuse"], correct: 2, category: "Spaceflight", difficulty: "Easy" },
+      { q: "Which spacecraft carried the first humans to land on the Moon?", answers: ["Apollo 11", "Voyager 1", "Gemini 4", "Sputnik 1"], correct: 0, category: "Spaceflight", difficulty: "Challenge" },
+      { q: "What is the name of the reusable spacecraft launched by NASA and used for orbital missions?", answers: ["Space Shuttle", "Soyuz", "Dragon", "Lunar Module"], correct: 0, category: "Spaceflight", difficulty: "Challenge" },
+      { q: "Which telescope has observed objects in visible and infrared light from orbit?", answers: ["Hubble", "Arecibo", "FAST", "Keck"], correct: 0, category: "Spaceflight", difficulty: "Challenge" },
+      { q: "What is the minimum speed needed to escape a planet's gravity called?", answers: ["Orbital velocity", "Escape velocity", "Terminal velocity", "Cruising speed"], correct: 1, category: "Spaceflight", difficulty: "Challenge" },
+      { q: "Which probe became the first spacecraft to enter interstellar space?", answers: ["Voyager 1", "Cassini", "New Horizons", "Juno"], correct: 0, category: "Spaceflight", difficulty: "Challenge" }
     ];
 
     let current = 0;
     let score = 0;
     let answered = false;
+    let missionQuestions = [];
 
     const $ = (id) => document.getElementById(id);
     const questionText = $("questionText");
     const answersEl = $("answers");
     const feedback = $("feedback");
     const nextButton = $("nextButton");
+    const setup = $("setup");
+    const categorySelect = $("categorySelect");
+    const difficultySelect = $("difficultySelect");
+    const missionStatus = $("missionStatus");
+    const startButton = $("startButton");
 
     function renderQuestion() {
-      const item = questions[current];
+      const item = missionQuestions[current];
       answered = false;
-      $("questionCount").textContent = `${current + 1} / ${questions.length}`;
+      $("questionCount").textContent = `${current + 1} / ${missionQuestions.length}`;
       $("questionNumber").textContent = `QUESTION ${String(current + 1).padStart(2, "0")}`;
-      $("progressPercent").textContent = `${Math.round(((current + 1) / questions.length) * 100)}%`;
-      $("progressBar").style.width = `${((current + 1) / questions.length) * 100}%`;
+      $("progressPercent").textContent = `${Math.round(((current + 1) / missionQuestions.length) * 100)}%`;
+      $("progressBar").style.width = `${((current + 1) / missionQuestions.length) * 100}%`;
       questionText.textContent = item.q;
       feedback.textContent = "";
       feedback.className = "feedback";
@@ -274,7 +359,7 @@
     function selectAnswer(index, selectedButton) {
       if (answered) return;
       answered = true;
-      const item = questions[current];
+      const item = missionQuestions[current];
       const buttons = [...answersEl.children];
       buttons.forEach((button) => { button.disabled = true; });
       buttons[item.correct].classList.add("correct");
@@ -288,21 +373,21 @@
       }
       feedback.className = "feedback pop";
       nextButton.disabled = false;
-      nextButton.textContent = current === questions.length - 1 ? "View mission results" : "Next question →";
+      nextButton.textContent = current === missionQuestions.length - 1 ? "View mission results" : "Next question →";
     }
 
     nextButton.addEventListener("click", () => {
       if (!answered) return;
       current++;
-      if (current < questions.length) renderQuestion();
+      if (current < missionQuestions.length) renderQuestion();
       else showResults();
     });
 
     function showResults() {
       $("quiz").classList.add("hidden");
       $("results").classList.add("show");
-      $("finalScore").textContent = `${score} / ${questions.length}`;
-      const ratio = score / questions.length;
+      $("finalScore").textContent = `${score} / ${missionQuestions.length}`;
+      const ratio = score / missionQuestions.length;
       if (ratio === 1) {
         $("resultEmoji").textContent = "🏆";
         $("resultTitle").textContent = "Perfect orbit!";
@@ -326,9 +411,10 @@
       current = 0;
       score = 0;
       $("score").textContent = "0 pts";
-      $("quiz").classList.remove("hidden");
+      $("quiz").classList.add("hidden");
       $("results").classList.remove("show");
-      renderQuestion();
+      setup.classList.remove("hidden");
+      updateSetup();
     });
 
     $("themeToggle").addEventListener("click", () => {
@@ -337,7 +423,50 @@
       $("themeToggle").setAttribute("aria-label", light ? "Switch to dark theme" : "Switch to light theme");
     });
 
-    renderQuestion();
+    function getMatchingQuestions() {
+      return questions.filter((item) =>
+        (categorySelect.value === "All" || item.category === categorySelect.value) &&
+        (difficultySelect.value === "All" || item.difficulty === difficultySelect.value)
+      );
+    }
+
+    function updateSetup() {
+      const matches = getMatchingQuestions();
+      startButton.disabled = matches.length === 0;
+      if (matches.length === 0) {
+        missionStatus.innerHTML = "<strong>No questions available</strong> for this combination.";
+      } else if (matches.length < 10) {
+        missionStatus.innerHTML = `This mission has <strong>${matches.length} available question${matches.length === 1 ? "" : "s"}</strong> (maximum available).`;
+      } else {
+        missionStatus.innerHTML = `Ready for a <strong>10-question mission</strong>.`;
+      }
+    }
+
+    function shuffled(items) {
+      const copy = [...items];
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy;
+    }
+
+    categorySelect.addEventListener("change", updateSetup);
+    difficultySelect.addEventListener("change", updateSetup);
+    startButton.addEventListener("click", () => {
+      const matches = getMatchingQuestions();
+      if (matches.length === 0) return;
+      missionQuestions = shuffled(matches).slice(0, 10);
+      current = 0;
+      score = 0;
+      answered = false;
+      $("score").textContent = "0 pts";
+      setup.classList.add("hidden");
+      $("quiz").classList.remove("hidden");
+      renderQuestion();
+    });
+
+    updateSetup();
   </script>
 </body>
 </html>
